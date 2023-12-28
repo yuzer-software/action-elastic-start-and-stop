@@ -1,0 +1,70 @@
+name: 'action-elastic-start-and-stop'
+description: 'Start/stop elastic server for build test'
+inputs:
+  elastic_version:
+    description: 'Elastic server version'
+    required: false
+    default: '8.11.3'
+  elastic_container_name:
+    description: 'container name'
+    default: 'elastic-container'
+  stop:
+    description: 'Stop Elastic server'
+    required: false
+outputs:
+  elastic_port:
+    description: "Random host port on which Elastic is bound."
+    value: ${{ steps.get-port.outputs.elastic_host_port }}
+runs:
+  using: 'composite'
+  steps:
+    - name: Set container name
+      id: prep
+      run: |
+        COMMIT_SHA=${{ github.sha }}
+        COMMIT_SHORTREF=${COMMIT_SHA::8}
+        ELASTIC_CONTAINER_NAME="${{ inputs.elastic_container_name }}-${{ github.event.repository.name }}-${COMMIT_SHORTREF}"
+        echo "Container name is $ELASTIC_CONTAINER_NAME"
+        echo "es_container_name=${ELASTIC_CONTAINER_NAME}" >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: Start Elastic container
+      if: '!inputs.stop'
+      run: |
+        if [ "$(docker ps -aq -f name=${{ steps.prep.outputs.es_container_name }})" ]; then
+            docker rm -f ${{ steps.prep.outputs.es_container_name }}
+        fi
+        docker run -d --name ${{ steps.prep.outputs.es_container_name }} \
+          -p 9200 \
+          -e "discovery.type=single-node" \
+          -e "xpack.security.enabled=false" \
+          elasticsearch:${{ inputs.elastic_version }}
+      shell: bash
+
+    - name: Get Elastic host port number
+      id: get-port
+      if: '!inputs.stop'
+      run : |
+        ELASTIC_HOST_PORT=$(docker inspect ${{ steps.prep.outputs.es_container_name }} --format '{{ (index (index .NetworkSettings.Ports "9200/tcp") 0).HostPort }}')
+        echo "elastic_host_port=${ELASTIC_HOST_PORT}" >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: Wait for Elastic to start
+      if: '!inputs.stop'
+      run: |
+        seconds=1
+        until curl "localhost:${{ steps.get-port.outputs.elastic_host_port }}/_cluster/health?wait_for_status=yellow&timeout=50s&pretty" 2>&1; do
+          echo "Waiting for Elastic to be ready... ($seconds)"
+          sleep 1
+          seconds=$((seconds + 1))
+        done
+        echo "Elastic is ready."
+      shell: bash
+
+    - name: Delete Elastic container
+      if: 'inputs.stop'
+      run: |
+        if [ "$(docker ps -aq -f name=${{ steps.prep.outputs.es_container_name }})" ]; then
+            docker rm -f ${{ steps.prep.outputs.es_container_name }}
+        fi
+      shell: bash
