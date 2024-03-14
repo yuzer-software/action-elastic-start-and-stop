@@ -4,7 +4,7 @@ inputs:
   elastic_version:
     description: 'Elastic server version'
     required: false
-    default: '8.11.3'
+    default: '8.12.2'
   elastic_container_name:
     description: 'container name'
     default: 'elastic-container'
@@ -13,7 +13,7 @@ inputs:
     required: false
 outputs:
   elastic_port:
-    description: "Random host port on which Elastic is bound."
+    description: 'Random host port on which Elastic is bound.'
     value: ${{ steps.get-port.outputs.elastic_host_port }}
 runs:
   using: 'composite'
@@ -44,7 +44,7 @@ runs:
     - name: Get Elastic host port number
       id: get-port
       if: '!inputs.stop'
-      run : |
+      run: |
         ELASTIC_HOST_PORT=$(docker inspect ${{ steps.prep.outputs.es_container_name }} --format '{{ (index (index .NetworkSettings.Ports "9200/tcp") 0).HostPort }}')
         echo "elastic_host_port=${ELASTIC_HOST_PORT}" >> $GITHUB_OUTPUT
       shell: bash
