@@ -11,6 +11,10 @@ inputs:
   stop:
     description: 'Stop Elastic server'
     required: false
+  elastic_container_memory:
+    description: 'Set container max mem for elastic server'
+    required: false
+    default: '512m'
 outputs:
   elastic_port:
     description: 'Random host port on which Elastic is bound.'
@@ -34,7 +38,7 @@ runs:
         if [ "$(docker ps -aq -f name=${{ steps.prep.outputs.es_container_name }})" ]; then
             docker rm -f ${{ steps.prep.outputs.es_container_name }}
         fi
-        docker run -d --name ${{ steps.prep.outputs.es_container_name }} \
+        docker run -d --name ${{ steps.prep.outputs.es_container_name }} -m ${{ inputs.elastic_container_memory }} \
           -p 9200 \
           -e "discovery.type=single-node" \
           -e "xpack.security.enabled=false" \
