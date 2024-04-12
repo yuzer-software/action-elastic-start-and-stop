@@ -57,11 +57,19 @@ runs:
       if: '!inputs.stop'
       run: |
         seconds=1
-        until curl "localhost:${{ steps.get-port.outputs.elastic_host_port }}/_cluster/health?wait_for_status=yellow&timeout=50s&pretty" 2>&1; do
+        timeout=50
+        start_time=$(date +%s)
+        until curl -s "localhost:${{ steps.get-port.outputs.elastic_host_port }}/_cluster/health?wait_for_status=yellow&timeout=50s&pretty" >/dev/null 2>&1 || (( $(date +%s) - start_time > timeout )); do
           echo "Waiting for Elastic to be ready... ($seconds)"
           sleep 1
           seconds=$((seconds + 1))
         done
+
+        if (( $(date +%s) - start_time > timeout )); then
+          echo "Timeout reached. Elastic is not ready. (check logs)"
+          exit 1
+        fi
+
         echo "Elastic is ready."
       shell: bash
 
